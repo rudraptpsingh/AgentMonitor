@@ -3,13 +3,18 @@
   "private": true,
   "version": "0.2.0",
   "description": "Activity Monitor for local AI coding agents (Claude Code, Cursor, Codex, MCP)",
-  "type": "module",
+  "bin": {
+    "agent-monitor": "./bin/agent-monitor.mjs"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "mcp": "node mcp-server/index.mjs",
+    "cli": "node bin/agent-monitor.mjs",
+    "skill:install": "node bin/agent-monitor.mjs install-skill",
+    "mcp:install": "node bin/agent-monitor.mjs install-mcp",
     "format": "oxfmt"
   },
   "dependencies": {

@@ -125,6 +125,78 @@ Add to your project `.cursor/mcp.json`:
 
 ---
 
+## Zero-Notarization CLI & Headless Tool Mode
+
+On macOS, downloading pre-built `.app` or `.dmg` binaries from the internet normally requires an Apple Developer ID signature and Apple Gatekeeper Notarization.
+
+**AgentMonitor is completely usable without any GUI, without an Apple Developer account, and without Apple Notarization.**
+
+If you or your AI agents work primarily from the terminal or IDE, you can run AgentMonitor entirely as a headless CLI utility or MCP server:
+
+### Instant CLI Usage
+
+Run without installing:
+```bash
+# In the cloned repo:
+node bin/agent-monitor.mjs health
+
+# Or via npm script:
+npm run cli -- health
+
+# Output raw JSON for scripts/agents:
+npm run cli -- health --json
+```
+
+### Available CLI Commands
+
+| Command | Arguments | Description |
+|---|---|---|
+| `health` | `[--json]` | Scan live resource consumption across coding agents, PTYs, and MCP servers. |
+| `zombies` | `[--json]` | Detect orphaned child processes with dead parents (PPID 1) causing file locks. |
+| `reap` | `[--force]` | Terminate detached zombies and free locked ports and file descriptors. |
+| `quota` | `[--json]` | Display 5-hour rate limit countdown, P90 headroom, and token burn rate. |
+| `checkpoint` | `[message]` | Take a fast Merkle shadow snapshot before running risky or destructive bash commands. |
+| `rollback` | `[snapshot_id]` | Revert workspace to snapshot in 15ms. |
+| `context` | `[--json]` | Audit BPE token weight of `CLAUDE.md`, `AGENTS.md`, and rule files. |
+| `mcp` | — | Start Model Context Protocol stdio server for Claude Code, Cursor, Windsurf. |
+| `install-skill` | `[target_dir]` | Install the AgentMonitor skill into `.agents/skills/` in your workspace. |
+| `install-mcp` | `[cursor\|claude\|agent]` | Configure MCP in Cursor, Claude Desktop, or Antigravity with a single command. |
+
+> [!TIP]
+> **If you DO want to run the desktop GUI without Apple Notarization:**  
+> If macOS displays *"Apple cannot check it for malicious software"* when launching the desktop app, simply strip the quarantine attribute:
+> ```bash
+> xattr -cr /Applications/AgentMonitor.app
+> ```
+> Or Right-Click the `.app` file in Finder and select **Open → Open**.
+
+---
+
+## Agent Skill & Autonomous Self-Healing
+
+AI coding agents (Antigravity, Claude Code, Cursor, Codex, OpenCode) can be equipped with the **AgentMonitor Skill** so they can autonomously monitor system pressure, take pre-execution checkpoints, and heal stuck ports without human intervention.
+
+### 1. Install the Skill into your Workspace
+```bash
+node bin/agent-monitor.mjs install-skill
+```
+This automatically provisions `.agents/skills/agent-monitor/SKILL.md` (or into your custom agent directory).
+
+### 2. Auto-Configure MCP Tools for Agents
+```bash
+# Configure Cursor, Claude Desktop, and Workspace Agent MCP all at once:
+node bin/agent-monitor.mjs install-mcp all
+```
+
+### 3. How Agents Interact with the Tool
+Once installed, agents will automatically:
+- **Self-Check Health:** Check CPU% and memory before launching parallel compile jobs or Docker builds.
+- **Auto-Reap Dead Ports:** When a test fails with `EADDRINUSE`, the agent executes `agent-monitor reap --force` and retries.
+- **Pre-Execution Checkpoint:** Before executing a destructive command (`rm`, `git reset`, database drops), the agent runs `agent-monitor checkpoint "Description"` to provide a 15ms safety net.
+- **Rollback Hallucinations:** If multi-file edits fail compiler checks, the agent rolls back instantly via `agent-monitor rollback`.
+
+---
+
 ## User Actions & Keyboard Shortcuts
 
 | Action | Shortcut | Description |

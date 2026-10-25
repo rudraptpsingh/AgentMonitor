@@ -146,14 +146,24 @@ function scanLiveProcesses() {
           const cpu = parseFloat(parts[2]) || 0;
           const mem = parseFloat(parts[3]) || 0;
           const comm = parts.slice(4).join(' ');
-          if (/claude|cursor|codex|agent|node|python|mcp/i.test(comm)) {
+
+          // Never flag macOS or Linux OS daemons
+          if (comm.startsWith('/System/') || comm.startsWith('/usr/') || comm.startsWith('/sbin/')) {
+            continue;
+          }
+
+          const isAgent = /(?:^|\/)(claude|cursor|codex|node|python[0-9.]*|mcp|vite|esbuild|tsx|cargo)$/i.test(comm)
+            || /claude-code|@modelcontextprotocol|cursor-server|agent-monitor/i.test(comm);
+
+          const isGuiApp = comm.includes('.app/Contents/MacOS/');
+          if (isAgent) {
             processes.push({
               pid,
               ppid,
               cpu,
               mem,
               comm,
-              isZombie: ppid === 1 && !comm.includes('launchd'),
+              isZombie: ppid === 1 && !isGuiApp && !comm.includes('launchd') && !comm.includes('systemd'),
             });
           }
         }
@@ -314,106 +324,115 @@ function sendError(id, code, message) {
   process.stdout.write(`Content-Length: ${Buffer.byteLength(payload, 'utf-8')}\r\n\r\n${payload}`);
 }
 
-// Buffer incoming stdio stream
-let buffer = '';
+export { TOOLS, handleToolCall, scanLiveProcesses };
 
-process.stdin.setEncoding('utf-8');
-process.stdin.on('data', chunk => {
-  buffer += chunk;
+export function startMcpServer() {
+  let buffer = '';
 
-  while (true) {
-    // Check for Content-Length header or direct newline JSON
-    const headerMatch = buffer.match(/^Content-Length:\s*(\d+)\r\n\r\n/i);
-    if (headerMatch) {
-      const contentLength = parseInt(headerMatch[1], 10);
-      const headerLength = headerMatch[0].length;
-      if (buffer.length >= headerLength + contentLength) {
-        const bodyStr = buffer.slice(headerLength, headerLength + contentLength);
-        buffer = buffer.slice(headerLength + contentLength);
-        try {
-          const msg = JSON.parse(bodyStr);
-          processMessage(msg);
-        } catch (e) {
-          console.error('[MCP Error] Parse JSON error:', e);
+  process.stdin.setEncoding('utf-8');
+  process.stdin.on('data', chunk => {
+    buffer += chunk;
+
+    while (true) {
+      // Check for Content-Length header or direct newline JSON
+      const headerMatch = buffer.match(/^Content-Length:\s*(\d+)\r\n\r\n/i);
+      if (headerMatch) {
+        const contentLength = parseInt(headerMatch[1], 10);
+        const headerLength = headerMatch[0].length;
+        if (buffer.length >= headerLength + contentLength) {
+          const bodyStr = buffer.slice(headerLength, headerLength + contentLength);
+          buffer = buffer.slice(headerLength + contentLength);
+          try {
+            const msg = JSON.parse(bodyStr);
+            processMessage(msg);
+          } catch (e) {
+            console.error('[MCP Error] Parse JSON error:', e);
+          }
+          continue;
+        }
+        break;
+      }
+
+      // Direct JSON lines fallback (for standard CLI pipe testing)
+      const lineEnd = buffer.indexOf('\n');
+      if (lineEnd !== -1) {
+        const line = buffer.slice(0, lineEnd).trim();
+        buffer = buffer.slice(lineEnd + 1);
+        if (line) {
+          try {
+            const msg = JSON.parse(line);
+            processMessage(msg);
+          } catch (e) {
+            // Ignore incomplete chunk
+          }
         }
         continue;
       }
       break;
     }
+  });
 
-    // Direct JSON lines fallback (for standard CLI pipe testing)
-    const lineEnd = buffer.indexOf('\n');
-    if (lineEnd !== -1) {
-      const line = buffer.slice(0, lineEnd).trim();
-      buffer = buffer.slice(lineEnd + 1);
-      if (line) {
-        try {
-          const msg = JSON.parse(line);
-          processMessage(msg);
-        } catch (e) {
-          // Ignore incomplete chunk
-        }
-      }
-      continue;
-    }
-    break;
-  }
-});
+  async function processMessage(msg) {
+    const { id, method, params } = msg;
 
-async function processMessage(msg) {
-  const { id, method, params } = msg;
-
-  if (method === 'initialize') {
-    sendResponse(id, {
-      protocolVersion: PROTOCOL_VERSION,
-      capabilities: {
-        tools: { listChanged: false },
-      },
-      serverInfo: {
-        name: SERVER_NAME,
-        version: SERVER_VERSION,
-      },
-    });
-    return;
-  }
-
-  if (method === 'notifications/initialized') {
-    // Client notification acknowledgment
-    return;
-  }
-
-  if (method === 'ping') {
-    sendResponse(id, {});
-    return;
-  }
-
-  if (method === 'tools/list') {
-    sendResponse(id, { tools: TOOLS });
-    return;
-  }
-
-  if (method === 'tools/call') {
-    const { name, arguments: toolArgs } = params || {};
-    try {
-      const result = await handleToolCall(name, toolArgs || {});
+    if (method === 'initialize') {
       sendResponse(id, {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
+        protocolVersion: PROTOCOL_VERSION,
+        capabilities: {
+          tools: { listChanged: false },
+        },
+        serverInfo: {
+          name: SERVER_NAME,
+          version: SERVER_VERSION,
+        },
       });
-    } catch (err) {
-      sendError(id, -32603, err.message || 'Internal error executing tool');
+      return;
     }
-    return;
+
+    if (method === 'notifications/initialized') {
+      // Client notification acknowledgment
+      return;
+    }
+
+    if (method === 'ping') {
+      sendResponse(id, {});
+      return;
+    }
+
+    if (method === 'tools/list') {
+      sendResponse(id, { tools: TOOLS });
+      return;
+    }
+
+    if (method === 'tools/call') {
+      const { name, arguments: toolArgs } = params || {};
+      try {
+        const result = await handleToolCall(name, toolArgs || {});
+        sendResponse(id, {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        });
+      } catch (err) {
+        sendError(id, -32603, err.message || 'Internal error executing tool');
+      }
+      return;
+    }
+
+    if (id !== undefined) {
+      sendError(id, -32601, `Method not found: ${method}`);
+    }
   }
 
-  if (id !== undefined) {
-    sendError(id, -32601, `Method not found: ${method}`);
-  }
+  // Log startup to stderr (stdout is reserved for JSON-RPC transport)
+  console.error(`[AgentMonitor] MCP Server running on stdio (protocol: ${PROTOCOL_VERSION})`);
 }
 
-// Log startup to stderr (stdout is reserved for JSON-RPC transport)
-console.error(`[AgentMonitor] MCP Server running on stdio (protocol: ${PROTOCOL_VERSION})`);
+// Auto-start when executed directly via node mcp-server/index.mjs
+import { pathToFileURL } from 'node:url';
+if (process.argv[1] && (pathToFileURL(process.argv[1]).href === import.meta.url || process.argv[1].endsWith('mcp-server/index.mjs'))) {
+  startMcpServer();
+}

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agent-monitor": {
+      "command": "node",
+      "args": [
+        "/Users/rp/Documents/GitHub/AgentMonitor/mcp-server/index.mjs"
+      ]
+    }
+  }
+}
