@@ -2,6 +2,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModifiedFileItem {
+    pub path: String,
+    pub status: String, // "M" | "A" | "D"
+    pub additions: u32,
+    pub deletions: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CheckpointTurn {
     pub turn_number: u32,
     pub timestamp_str: String,
@@ -15,6 +24,8 @@ pub struct CheckpointTurn {
     pub tone: String,             // "green" | "danger" | "amber"
     pub diff_file: Option<String>,
     pub diff_content: Option<String>,
+    #[serde(default)]
+    pub modified_files: Vec<ModifiedFileItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

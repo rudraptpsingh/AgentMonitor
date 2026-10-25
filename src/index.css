@@ -997,3 +997,199 @@ tbody tr.selected td .pill {
   font-weight: 600;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
+
+/* Filesystem Git View & Split Diff Pane */
+.filesystem-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.filesystem-table-container {
+  height: 200px;
+  flex-shrink: 0;
+  overflow: auto;
+  border-bottom: 1px solid #2f3037;
+  background: #141518;
+}
+
+.filesystem-detail-bar {
+  height: 32px;
+  background: #1e1f24;
+  border-bottom: 1px solid #2f3037;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.filesystem-detail-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #cfd0d6;
+}
+
+.filesystem-detail-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.diff-stat-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.diff-stat-add {
+  color: #30d158;
+  background: rgba(48, 209, 88, 0.15);
+}
+
+.diff-stat-del {
+  color: #ff453a;
+  background: rgba(255, 69, 58, 0.15);
+}
+
+.btn-open-file {
+  height: 22px;
+  padding: 0 8px;
+  background: #2a2b32;
+  border: 1px solid #3c3d46;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-open-file:hover {
+  background: #363740;
+  border-color: #0a84ff;
+}
+
+.filesystem-split-pane {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.filesystem-files-list {
+  width: 320px;
+  flex-shrink: 0;
+  background: #16171b;
+  border-right: 1px solid #2f3037;
+  overflow-y: auto;
+}
+
+.git-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #c4c5cc;
+  cursor: pointer;
+  border-bottom: 1px solid #212228;
+  transition: background 0.1s ease;
+}
+
+.git-file-row:hover {
+  background: #222329;
+}
+
+.git-file-row.selected {
+  background: #0a84ff;
+  color: #ffffff;
+}
+
+.git-file-row.selected .diff-stat-add {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.git-file-row.selected .diff-stat-del {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.file-status-badge {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  line-height: 15px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 3px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.status-a {
+  background: rgba(48, 209, 88, 0.2);
+  color: #30d158;
+}
+
+.status-m {
+  background: rgba(56, 139, 253, 0.2);
+  color: #58a6ff;
+}
+
+.status-d {
+  background: rgba(255, 69, 58, 0.2);
+  color: #ff453a;
+}
+
+.git-diff-viewer {
+  flex: 1 1 0%;
+  overflow: auto;
+  background: #0e0f12;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  color: #c9d1d9;
+  white-space: pre;
+}
+
+.diff-line {
+  display: flex;
+  padding: 0 4px;
+}
+
+.diff-line-add {
+  background: rgba(48, 209, 88, 0.12);
+  color: #30d158;
+}
+
+.diff-line-del {
+  background: rgba(255, 69, 58, 0.12);
+  color: #ff453a;
+}
+
+.diff-line-hunk {
+  background: rgba(167, 139, 250, 0.1);
+  color: #a78bfa;
+  font-weight: 600;
+  padding: 2px 4px;
+  margin: 4px 0;
+  border-radius: 3px;
+}
+
+.diff-line-header {
+  color: #8b949e;
+  font-style: italic;
+}

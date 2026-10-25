@@ -40,6 +40,14 @@ export interface TokenSessionMetrics {
   tone: string
 }
 
+export interface ModifiedFileEntry {
+  path: string
+  status: 'M' | 'A' | 'D'
+  additions: number
+  deletions: number
+  patch?: string
+}
+
 export interface CheckpointTurn {
   turnNumber: number
   timestampStr: string
@@ -53,6 +61,7 @@ export interface CheckpointTurn {
   tone: string
   diffFile?: string
   diffContent?: string
+  modifiedFiles?: ModifiedFileEntry[]
 }
 
 export interface WirePacket {
@@ -417,6 +426,12 @@ export const agentApi = {
   },
   async rewindTurn(snapshotId: string): Promise<{ success: boolean; elapsedMs: number }> {
     return invokeTauri<{ success: boolean; elapsedMs: number }>('rewind_turn', { snapshotId })
+  },
+  async getFileDiff(snapshotId: string, filePath: string): Promise<string> {
+    return invokeTauri<string>('get_file_diff', { snapshotId, filePath })
+  },
+  async openFile(filePath: string): Promise<boolean> {
+    return invokeTauri<boolean>('open_file', { filePath })
   },
 
   // Tab 4: MCP & Tool Wire

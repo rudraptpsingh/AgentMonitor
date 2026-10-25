@@ -38,6 +38,8 @@ pub fn run() {
             // Tab 3: Filesystem & Rewind
             get_checkpoints,
             rewind_turn,
+            get_file_diff,
+            open_local_file,
             // Tab 4: MCP & Tool Wire
             get_wire_packets,
             toggle_log_scrubber,

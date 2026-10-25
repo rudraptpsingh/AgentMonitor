@@ -221,27 +221,62 @@ function agentMonitorApiPlugin(): Plugin {
           return
         }
 
-        if (url === '/api/get_checkpoints' || url === '/api/checkpoints') {
+        if (url.startsWith('/api/get_checkpoints') || url.startsWith('/api/checkpoints')) {
           try {
-            const gitLog = execSync('git log --pretty=format:"%h|%s|%ct" -n 8', { encoding: 'utf-8' })
+            const gitLog = execSync('git log --pretty=format:"%h|%s|%ct" -n 12', { encoding: 'utf-8' })
             const gitStatus = execSync('git status --porcelain', { encoding: 'utf-8' })
             const statusLines = gitStatus.split('\n').filter(Boolean)
 
             const checkpoints: any[] = []
             if (statusLines.length > 0) {
+              const numstat = execSync('git diff --numstat HEAD', { encoding: 'utf-8' }).trim()
+              const nameStatus = execSync('git diff --name-status HEAD', { encoding: 'utf-8' }).trim()
+              const statusMap = new Map<string, string>()
+              for (const l of nameStatus.split('\n')) {
+                if (!l.trim()) continue
+                const [st, p] = l.split('\t')
+                if (p) statusMap.set(p, st)
+              }
+              const modifiedFiles: any[] = []
+              let totalAdd = 0
+              let totalDel = 0
+              for (const l of numstat.split('\n')) {
+                if (!l.trim()) continue
+                const [addStr, delStr, p] = l.split('\t')
+                if (!p) continue
+                const add = addStr === '-' ? 0 : parseInt(addStr, 10) || 0
+                const del = delStr === '-' ? 0 : parseInt(delStr, 10) || 0
+                totalAdd += add
+                totalDel += del
+                const st = statusMap.get(p) || 'M'
+                modifiedFiles.push({ path: p, status: st, additions: add, deletions: del })
+              }
+              for (const sl of statusLines) {
+                if (sl.startsWith('??')) {
+                  const p = sl.slice(3).trim()
+                  if (!modifiedFiles.some(f => f.path === p)) {
+                    let lines = 1
+                    try { lines = fs.readFileSync(p, 'utf-8').split('\n').length } catch (_) {}
+                    totalAdd += lines
+                    modifiedFiles.push({ path: p, status: 'A', additions: lines, deletions: 0 })
+                  }
+                }
+              }
+
               checkpoints.push({
                 turnNumber: 1,
                 timestampStr: 'Live Working Tree',
-                promptSummary: `Active uncommitted changes (${statusLines.length} files modified)`,
-                filesSummary: `${statusLines.length} files modified`,
-                filesModifiedCount: statusLines.length,
-                linesAdded: 142,
-                linesDeleted: 18,
+                promptSummary: `Active uncommitted changes (${modifiedFiles.length} files modified)`,
+                filesSummary: `${modifiedFiles.length} files (+${totalAdd} / -${totalDel})`,
+                filesModifiedCount: modifiedFiles.length,
+                linesAdded: totalAdd,
+                linesDeleted: totalDel,
                 guardrailStatus: 'SAFE',
                 snapshotId: 'snap_live',
                 tone: 'green',
-                diffFile: statusLines[0]?.slice(3),
-                diffContent: `+ Modified: ${statusLines.map(l => l.slice(3)).slice(0, 5).join(', ')}`
+                diffFile: modifiedFiles[0]?.path || 'Live',
+                diffContent: `Modified: ${modifiedFiles.slice(0, 5).map(f => f.path).join(', ')}`,
+                modifiedFiles
               })
             }
 
@@ -250,25 +285,93 @@ function agentMonitorApiPlugin(): Plugin {
               if (!line.trim()) continue
               const [hash, msg, timeStr] = line.split('|')
               const dt = new Date(parseInt(timeStr, 10) * 1000).toLocaleTimeString()
+
+              let modifiedFiles: any[] = []
+              let totalAdd = 0
+              let totalDel = 0
+              try {
+                const numstat = execSync(`git show --numstat --format="" ${hash}`, { encoding: 'utf-8' }).trim()
+                const nameStatus = execSync(`git show --name-status --format="" ${hash}`, { encoding: 'utf-8' }).trim()
+                const statusMap = new Map<string, string>()
+                for (const l of nameStatus.split('\n')) {
+                  if (!l.trim()) continue
+                  const [st, p] = l.split('\t')
+                  if (p) statusMap.set(p, st)
+                }
+                for (const l of numstat.split('\n')) {
+                  if (!l.trim()) continue
+                  const [addStr, delStr, p] = l.split('\t')
+                  if (!p) continue
+                  const add = addStr === '-' ? 0 : parseInt(addStr, 10) || 0
+                  const del = delStr === '-' ? 0 : parseInt(delStr, 10) || 0
+                  totalAdd += add
+                  totalDel += del
+                  const st = statusMap.get(p) || (add > 0 && del === 0 ? 'A' : (add === 0 && del > 0 ? 'D' : 'M'))
+                  modifiedFiles.push({ path: p, status: st, additions: add, deletions: del })
+                }
+              } catch (_) {}
+
               checkpoints.push({
                 turnNumber: turnIdx,
                 timestampStr: `#${turnIdx} · ${dt}`,
                 promptSummary: msg,
-                filesSummary: 'Commit diff',
-                filesModifiedCount: 2,
-                linesAdded: 45,
-                linesDeleted: 12,
+                filesSummary: `${modifiedFiles.length} files (+${totalAdd} / -${totalDel})`,
+                filesModifiedCount: modifiedFiles.length,
+                linesAdded: totalAdd,
+                linesDeleted: totalDel,
                 guardrailStatus: 'SAFE',
                 snapshotId: `snap_${hash}`,
                 tone: 'green',
-                diffFile: 'src/main.rs',
-                diffContent: `Commit: ${hash} - ${msg}`
+                diffFile: modifiedFiles[0]?.path,
+                diffContent: `Commit: ${hash} - ${msg}`,
+                modifiedFiles
               })
               turnIdx++
             }
             res.end(JSON.stringify(checkpoints))
           } catch (e) {
             res.end(JSON.stringify([]))
+          }
+          return
+        }
+
+        if (url.startsWith('/api/get_file_diff') || url.startsWith('/api/checkpoint_file_diff')) {
+          try {
+            const query = url.includes('?') ? new URLSearchParams(url.split('?')[1]) : new URLSearchParams()
+            const snapshotId = query.get('snapshotId') || 'snap_live'
+            const filePath = query.get('filePath') || query.get('file') || ''
+            const cleanId = snapshotId.replace(/^snap_/, '')
+
+            let patch = ''
+            if (cleanId === 'live') {
+              patch = execSync(`git diff HEAD -- "${filePath}"`, { encoding: 'utf-8' })
+              if (!patch && fs.existsSync(filePath)) {
+                const content = fs.readFileSync(filePath, 'utf-8')
+                patch = `--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${content.split('\n').length} @@\n` + content.split('\n').map(l => `+${l}`).join('\n')
+              }
+            } else {
+              patch = execSync(`git show ${cleanId} -- "${filePath}"`, { encoding: 'utf-8' })
+            }
+            res.end(JSON.stringify(patch))
+          } catch (e: any) {
+            res.end(JSON.stringify(`Error loading diff: ${e.message}`))
+          }
+          return
+        }
+
+        if (url.startsWith('/api/open_file')) {
+          try {
+            const query = url.includes('?') ? new URLSearchParams(url.split('?')[1]) : new URLSearchParams()
+            const filePath = query.get('filePath') || query.get('file') || ''
+            if (filePath && fs.existsSync(filePath)) {
+              const isMac = process.platform === 'darwin'
+              const isWin = process.platform === 'win32'
+              const cmd = isMac ? `open "${filePath}"` : (isWin ? `start "" "${filePath}"` : `xdg-open "${filePath}"`)
+              execSync(cmd)
+            }
+            res.end(JSON.stringify(true))
+          } catch (e: any) {
+            res.end(JSON.stringify(false))
           }
           return
         }

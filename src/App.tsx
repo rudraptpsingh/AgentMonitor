@@ -4,7 +4,7 @@ import { agentApi, AgentProcessNode, CheckpointTurn, StartupContextItem, TokenSe
 type Tab = 'processes' | 'tokens' | 'filesystem' | 'wire' | 'startup'
 const SearchContext = createContext('')
 
-type IconName = 'activity' | 'gauge' | 'history' | 'network' | 'layers' | 'pause' | 'x' | 'trash' | 'rewind' | 'search' | 'clock' | 'memory' | 'shield' | 'zap'
+type IconName = 'activity' | 'gauge' | 'history' | 'network' | 'layers' | 'pause' | 'x' | 'trash' | 'rewind' | 'search' | 'clock' | 'memory' | 'shield' | 'zap' | 'external' | 'file'
 
 const tabs: { id: Tab; icon: IconName; label: string; shortLabel: string }[] = [
   { id: 'processes', icon: 'activity', label: 'Processes', shortLabel: 'Processes' },
@@ -30,6 +30,8 @@ function Icon({ name, size = 14 }: { name: IconName; size?: number }) {
     memory: <><rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 10v4M12 10v4M16 10v4M7 4v3M12 4v3M17 4v3M7 17v3M12 17v3M17 17v3"/></>,
     shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,
     zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
+    external: <><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></>,
+    file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></>,
   }
   return (
     <svg
@@ -447,6 +449,45 @@ export default function App() {
   const [wirePackets, setWirePackets] = useState<WirePacket[]>([])
   const [startupItems, setStartupItems] = useState<StartupContextItem[]>([])
 
+  // Filesystem Git Diff States
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
+  const [fileDiff, setFileDiff] = useState<string>('')
+  const [loadingDiff, setLoadingDiff] = useState<boolean>(false)
+
+  const currentCheckpoint = checkpoints[selected] || checkpoints[0]
+  const currentFiles = currentCheckpoint?.modifiedFiles || []
+
+  // Auto-select first modified file when turn changes
+  useEffect(() => {
+    if (active === 'filesystem') {
+      const activeFile = currentFiles.find(f => f.path === selectedFilePath) || currentFiles[0]
+      if (activeFile && activeFile.path !== selectedFilePath) {
+        setSelectedFilePath(activeFile.path)
+      } else if (!activeFile && selectedFilePath) {
+        setSelectedFilePath(null)
+      }
+    }
+  }, [active, selected, checkpoints, selectedFilePath])
+
+  // Fetch diff when selected file or checkpoint changes
+  useEffect(() => {
+    if (active === 'filesystem' && selectedFilePath && currentCheckpoint?.snapshotId) {
+      setLoadingDiff(true)
+      agentApi.getFileDiff(currentCheckpoint.snapshotId, selectedFilePath)
+        .then(diff => {
+          setFileDiff(diff || '')
+        })
+        .catch(err => {
+          setFileDiff(`Error loading diff: ${err}`)
+        })
+        .finally(() => {
+          setLoadingDiff(false)
+        })
+    } else if (!selectedFilePath) {
+      setFileDiff('')
+    }
+  }, [active, selectedFilePath, currentCheckpoint?.snapshotId])
+
   // Load Real Telemetry on Mount & Poll
   useEffect(() => {
     let isMounted = true
@@ -548,6 +589,19 @@ export default function App() {
   const handleRewind = async () => {
     const res = await agentApi.rewindTurn('snap_live')
     showToast(`⏪ Restored shadow Merkle snapshot in ${res.elapsedMs}ms`)
+  }
+
+  const handleOpenFile = async (filePath: string) => {
+    try {
+      const res = await agentApi.openFile(filePath)
+      if (res.success) {
+        showToast(`📂 Opened ${filePath.split('/').pop() || filePath} in editor`)
+      } else {
+        showToast(`⚠️ Could not open file: ${res.error || 'Unknown error'}`)
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Could not open file: ${err?.message || err}`)
+    }
   }
 
   // Live Metrics Derived from Real Process Tree
@@ -768,22 +822,130 @@ export default function App() {
             )}
 
             {active === 'filesystem' && (
-              <DataTable
-                selected={selected}
-                onSelect={setSelected}
-                headers={[
-                  'Turn # & Timestamp',
-                  'Prompt Summary',
-                  'Files Modified',
-                  'Guardrail Status',
-                  'Snapshot ID',
-                ]}
-                rows={
-                  fileRows.length > 0
-                    ? fileRows
-                    : [['Reading .git status...', 'Active working tree', '—', 'SAFE', 'snap_live']]
-                }
-              />
+              <div className="filesystem-view">
+                <div className="filesystem-table-container">
+                  <DataTable
+                    selected={selected}
+                    onSelect={setSelected}
+                    headers={[
+                      'Turn # & Timestamp',
+                      'Prompt Summary',
+                      'Files Modified',
+                      'Guardrail Status',
+                      'Snapshot ID',
+                    ]}
+                    rows={
+                      fileRows.length > 0
+                        ? fileRows
+                        : [['Reading .git status...', 'Active working tree', '—', 'SAFE', 'snap_live']]
+                    }
+                  />
+                </div>
+
+                <div className="filesystem-detail-bar">
+                  <div className="filesystem-detail-left">
+                    <Icon name="file" size={13} />
+                    <span>Modified Files ({currentFiles.length})</span>
+                    {selectedFilePath && (
+                      <span className="pill neutral" style={{ fontFamily: 'var(--font-mono)' }}>
+                        {selectedFilePath}
+                      </span>
+                    )}
+                  </div>
+                  <div className="filesystem-detail-right">
+                    {selectedFilePath && (
+                      <button
+                        className="btn-open-file"
+                        onClick={() => handleOpenFile(selectedFilePath)}
+                        title="Open file in default system editor"
+                      >
+                        <Icon name="external" size={11} />
+                        <span>Open File</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="filesystem-split-pane">
+                  <div className="filesystem-files-list">
+                    {currentFiles.length === 0 ? (
+                      <div style={{ padding: '16px', color: 'var(--text-tertiary)', fontSize: '11px', textAlign: 'center' }}>
+                        No modified files in this snapshot
+                      </div>
+                    ) : (
+                      currentFiles.map(file => {
+                        const isSelected = file.path === selectedFilePath
+                        const statusBadgeClass =
+                          file.status === 'A' ? 'status-a' : file.status === 'D' ? 'status-d' : 'status-m'
+                        return (
+                          <div
+                            key={file.path}
+                            className={`git-file-row ${isSelected ? 'selected' : ''}`}
+                            onClick={() => setSelectedFilePath(file.path)}
+                            onDoubleClick={() => handleOpenFile(file.path)}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', gap: '4px' }}>
+                              <span className={`file-status-badge ${statusBadgeClass}`}>
+                                {file.status || 'M'}
+                              </span>
+                              <span title={file.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {file.path}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                              {file.additions > 0 && (
+                                <span className="diff-stat-pill diff-stat-add">+{file.additions}</span>
+                              )}
+                              {file.deletions > 0 && (
+                                <span className="diff-stat-pill diff-stat-del">-{file.deletions}</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  <div className="git-diff-viewer">
+                    {loadingDiff ? (
+                      <div style={{ padding: '16px', color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                        Loading unified git diff...
+                      </div>
+                    ) : !selectedFilePath ? (
+                      <div style={{ padding: '16px', color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                        Select a file to inspect git diff
+                      </div>
+                    ) : !fileDiff ? (
+                      <div style={{ padding: '16px', color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                        No changes or binary file
+                      </div>
+                    ) : (
+                      fileDiff.split('\n').map((line, idx) => {
+                        let lineClass = ''
+                        if (line.startsWith('+') && !line.startsWith('+++')) {
+                          lineClass = 'diff-line-add'
+                        } else if (line.startsWith('-') && !line.startsWith('---')) {
+                          lineClass = 'diff-line-del'
+                        } else if (line.startsWith('@@')) {
+                          lineClass = 'diff-line-hunk'
+                        } else if (
+                          line.startsWith('diff --git') ||
+                          line.startsWith('index ') ||
+                          line.startsWith('--- ') ||
+                          line.startsWith('+++ ')
+                        ) {
+                          lineClass = 'diff-line-header'
+                        }
+                        return (
+                          <div key={idx} className={`diff-line ${lineClass}`}>
+                            {line || ' '}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
             {active === 'wire' && (
