@@ -8,7 +8,7 @@ impl ZombieReaper {
         let mut sys = System::new();
         sys.refresh_processes_specifics(
             ProcessesToUpdate::All,
-            ProcessRefreshKind::everything(),
+            ProcessRefreshKind::new().with_cpu().with_memory(),
         );
 
         let mut terminated_pids = Vec::new();

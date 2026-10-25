@@ -7,7 +7,28 @@ import { execSync } from 'node:child_process'
 import os from 'node:os'
 
 import siteConfiguration from './.figma/make/site.json'
+const terminatedSessionIds = new Set<string>()
 
+function formatModelName(raw: string): string {
+  if (!raw) return 'Claude Sonnet 5.5'
+  const clean = raw.replace(/(\d+)-(\d+)/g, '$1.$2').replace(/-/g, ' ')
+  return clean
+    .split(' ')
+    .filter(Boolean)
+    .map(w => {
+      const lower = w.toLowerCase()
+      if (lower === 'claude') return 'Claude'
+      if (lower === 'sonnet') return 'Sonnet'
+      if (lower === 'opus') return 'Opus'
+      if (lower === 'haiku') return 'Haiku'
+      if (lower === 'gpt') return 'GPT'
+      if (lower === 'codex') return 'Codex'
+      if (lower === 'openai') return 'OpenAI'
+      if (lower === 'anthropic') return 'Anthropic'
+      return w.charAt(0).toUpperCase() + w.slice(1)
+    })
+    .join(' ')
+}
 
 function agentMonitorApiPlugin(): Plugin {
   return {
@@ -80,6 +101,27 @@ function agentMonitorApiPlugin(): Plugin {
           return
         }
 
+        if (url.startsWith('/api/terminate_session') || url.startsWith('/api/terminate-session')) {
+          try {
+            const query = url.includes('?') ? new URLSearchParams(url.split('?')[1]) : new URLSearchParams()
+            const id = query.get('id') || ''
+            const name = query.get('name') || ''
+            if (id) terminatedSessionIds.add(id)
+
+            // Kill any active agent processes matching the session name (e.g. axon or claude)
+            const target = name.split('/')[0].split('(')[0].trim().toLowerCase()
+            if (target && target !== 'session') {
+              try {
+                execSync(`pkill -f "${target}" || true`)
+              } catch (_) {}
+            }
+            res.end(JSON.stringify({ success: true, message: `Terminated session '${name}'` }))
+          } catch (e: any) {
+            res.end(JSON.stringify({ success: false, error: e?.message || 'Failed' }))
+          }
+          return
+        }
+
         if (url === '/api/get_token_metrics' || url === '/api/token-metrics') {
           const home = os.homedir()
           const claudeProjDir = path.join(home, '.claude', 'projects')
@@ -90,26 +132,59 @@ function agentMonitorApiPlugin(): Plugin {
             for (const d of dirs) {
               const fullDir = path.join(claudeProjDir, d)
               if (fs.statSync(fullDir).isDirectory()) {
-                const files = fs.readdirSync(fullDir).filter(f => f.endsWith('.jsonl'))
-                for (const f of files.slice(0, 2)) {
-                  const fPath = path.join(fullDir, f)
-                  const stats = fs.statSync(fPath)
-                  const mb = stats.size / (1024 * 1024)
-                  sessions.push({
-                    id: f.replace('.jsonl', ''),
-                    sessionName: `${d.replace(/^-Users-[^-]+-Documents-GitHub-/, '')} / claude`,
-                    provider: 'Anthropic',
-                    model: 'claude-opus-5-5',
-                    coldStartTaxTokens: 48200,
-                    activeMcpsCount: 6,
-                    burnRateTokensMin: Math.round(mb * 1100),
-                    burnRateCostHr: Math.round(mb * 0.85 * 100) / 100,
-                    taskCostDollars: Math.round(mb * 0.42 * 100) / 100,
-                    quota5hrPct: Math.min(88, Math.round(mb * 3.2)),
-                    quotaWeeklyPct: Math.min(65, Math.round(mb * 2.1)),
-                    quotaStatus: 'safe',
-                    tone: mb > 15 ? 'danger' : 'blue'
+                const files = fs.readdirSync(fullDir)
+                  .filter(f => f.endsWith('.jsonl'))
+                  .map(f => {
+                    const fPath = path.join(fullDir, f)
+                    const stats = fs.statSync(fPath)
+                    return { name: f, path: fPath, mtime: stats.mtimeMs, size: stats.size }
                   })
+                  .sort((a, b) => b.mtime - a.mtime)
+
+                // Pick ONLY the single latest session per project to prevent duplicate repetition
+                const latest = files[0]
+                if (latest) {
+                  const sessionId = latest.name.replace('.jsonl', '')
+                  if (!terminatedSessionIds.has(sessionId)) {
+                    const mb = latest.size / (1024 * 1024)
+
+                    // Inspect first 8KB of file to extract live model string
+                    let detectedModel = 'claude-sonnet-5-5'
+                    try {
+                      const fd = fs.openSync(latest.path, 'r')
+                      const buffer = Buffer.alloc(8192)
+                      const bytesRead = fs.readSync(fd, buffer, 0, 8192, 0)
+                      fs.closeSync(fd)
+                      const sample = buffer.toString('utf-8', 0, bytesRead)
+                      const modelMatch = sample.match(/claude-(?:sonnet|opus|haiku)-[0-9-]+/)
+                      if (modelMatch) {
+                        detectedModel = modelMatch[0]
+                      }
+                    } catch (_) {}
+
+                    let displayProject = d.replace(/^-Users-[^-]+-Documents-GitHub-/, '')
+                    if (d.includes('--claude-worktrees-')) {
+                      const parts = d.split('--claude-worktrees-')
+                      const base = parts[0].replace(/^-Users-[^-]+-Documents-GitHub-/, '')
+                      displayProject = `${base} (${parts[1]})`
+                    }
+
+                    sessions.push({
+                      id: sessionId,
+                      sessionName: `${displayProject} / claude`,
+                      provider: 'Anthropic',
+                      model: formatModelName(detectedModel),
+                      coldStartTaxTokens: 48200,
+                      activeMcpsCount: 6,
+                      burnRateTokensMin: Math.round(mb * 1100),
+                      burnRateCostHr: Math.round(mb * 0.85 * 100) / 100,
+                      taskCostDollars: Math.round(mb * 0.42 * 100) / 100,
+                      quota5hrPct: Math.min(88, Math.round(mb * 3.2)),
+                      quotaWeeklyPct: Math.min(65, Math.round(mb * 2.1)),
+                      quotaStatus: 'safe',
+                      tone: mb > 15 ? 'danger' : 'blue'
+                    })
+                  }
                 }
               }
             }
@@ -122,21 +197,23 @@ function agentMonitorApiPlugin(): Plugin {
               if (!line.trim()) continue
               try {
                 const parsed = JSON.parse(line)
-                sessions.push({
-                  id: parsed.id,
-                  sessionName: `codex / ${parsed.thread_name}`,
-                  provider: 'OpenAI',
-                  model: 'GPT-5.3 Codex',
-                  coldStartTaxTokens: 18950,
-                  activeMcpsCount: 3,
-                  burnRateTokensMin: 3860,
-                  burnRateCostHr: 3.42,
-                  taskCostDollars: 2.11,
-                  quota5hrPct: 28,
-                  quotaWeeklyPct: 19,
-                  quotaStatus: 'safe',
-                  tone: 'blue'
-                })
+                if (!terminatedSessionIds.has(parsed.id)) {
+                  sessions.push({
+                    id: parsed.id,
+                    sessionName: `codex / ${parsed.thread_name}`,
+                    provider: 'OpenAI',
+                    model: 'GPT-5.3 Codex',
+                    coldStartTaxTokens: 18950,
+                    activeMcpsCount: 3,
+                    burnRateTokensMin: 3860,
+                    burnRateCostHr: 3.42,
+                    taskCostDollars: 2.11,
+                    quota5hrPct: 28,
+                    quotaWeeklyPct: 19,
+                    quotaStatus: 'safe',
+                    tone: 'blue'
+                  })
+                }
               } catch (_) {}
             }
           }

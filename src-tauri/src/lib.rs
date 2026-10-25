@@ -5,8 +5,6 @@ pub mod models;
 use std::sync::Mutex;
 use commands::*;
 use engine::ProcessExplorerEngine;
-use tauri::Manager;
-
 pub fn run() {
     let state = AppState {
         explorer: Mutex::new(ProcessExplorerEngine::new()),
@@ -14,7 +12,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(debug_assertions)]
             {
                 // Native window opens cleanly. Devtools can be opened via right click -> Inspect Element
@@ -34,6 +32,7 @@ pub fn run() {
             get_token_metrics,
             get_quota_countdown,
             strip_idle_mcps,
+            terminate_session,
             // Tab 3: Filesystem & Rewind
             get_checkpoints,
             rewind_turn,

@@ -130,8 +130,12 @@ async function invokeTauri<T>(cmd: string, args: Record<string, unknown> = {}): 
   }
 
   // 3. Try relative /api/
+  const queryStr = Object.keys(args).length > 0
+    ? '?' + new URLSearchParams(Object.entries(args).map(([k, v]) => [k, String(v)])).toString()
+    : ''
+
   try {
-    const res = await fetch(`/api/${cmd}`)
+    const res = await fetch(`/api/${cmd}${queryStr}`)
     if (res.ok) {
       const data = await res.json()
       if (data !== undefined && data !== null) return data as T
@@ -139,7 +143,7 @@ async function invokeTauri<T>(cmd: string, args: Record<string, unknown> = {}): 
   } catch (err) {
     // 4. Try absolute localhost:8443 in case origin is tauri://
     try {
-      const res = await fetch(`http://localhost:8443/api/${cmd}`)
+      const res = await fetch(`http://localhost:8443/api/${cmd}${queryStr}`)
       if (res.ok) {
         const data = await res.json()
         if (data !== undefined && data !== null) return data as T
@@ -226,13 +230,16 @@ function getMockData<T>(cmd: string, _args: Record<string, unknown>): T {
         }
       ] as T
 
+    case 'terminate_session':
+      return { success: true, message: 'Session terminated' } as T
+
     case 'get_token_metrics':
       return [
         {
           id: "67e1a2e3-9765-4b4a-88dc-79843a8ef0be",
           sessionName: "NG-OK / claude",
           provider: "Anthropic",
-          model: "claude-opus-5-5",
+          model: "Claude Opus 5.5",
           coldStartTaxTokens: 48200,
           activeMcpsCount: 6,
           burnRateTokensMin: 3904,
@@ -399,6 +406,9 @@ export const agentApi = {
   },
   async stripIdleMcps(sessionId: string): Promise<number> {
     return invokeTauri<number>('strip_idle_mcps', { sessionId })
+  },
+  async terminateSession(sessionId: string, sessionName: string): Promise<{ success: boolean; message?: string }> {
+    return invokeTauri<{ success: boolean; message?: string }>('terminate_session', { sessionId, sessionName })
   },
 
   // Tab 3: Filesystem & Rewind

@@ -11,7 +11,7 @@ impl ProcessExplorerEngine {
         let mut sys = System::new();
         sys.refresh_processes_specifics(
             ProcessesToUpdate::All,
-            ProcessRefreshKind::everything(),
+            ProcessRefreshKind::new().with_cpu().with_memory(),
         );
         Self { sys }
     }
@@ -19,7 +19,7 @@ impl ProcessExplorerEngine {
     pub fn refresh(&mut self) {
         self.sys.refresh_processes_specifics(
             ProcessesToUpdate::All,
-            ProcessRefreshKind::everything(),
+            ProcessRefreshKind::new().with_cpu().with_memory(),
         );
     }
 
@@ -103,9 +103,10 @@ impl ProcessExplorerEngine {
         let mut total_cpu = 0.0f32;
         let mut total_mem = 0.0f64;
         let mut zombie_mem = 0.0f64;
+        let mut visited = HashSet::new();
 
         for root_pid in &root_pids {
-            if let Some(node) = self.build_node(*root_pid, &children_map, &ppid_map, false) {
+            if let Some(node) = self.build_node(*root_pid, &children_map, &ppid_map, false, &mut visited, 0) {
                 total_cpu += node.cpu_usage;
                 total_mem += node.memory_mb;
                 result_trees.push(node);
@@ -113,7 +114,7 @@ impl ProcessExplorerEngine {
         }
 
         for zombie_pid in &zombie_pids {
-            if let Some(node) = self.build_node(*zombie_pid, &children_map, &ppid_map, true) {
+            if let Some(node) = self.build_node(*zombie_pid, &children_map, &ppid_map, true, &mut visited, 0) {
                 zombie_mem += node.memory_mb;
                 result_trees.push(node);
             }
@@ -136,7 +137,13 @@ impl ProcessExplorerEngine {
         children_map: &HashMap<u32, Vec<u32>>,
         ppid_map: &HashMap<u32, u32>,
         is_zombie: bool,
+        visited: &mut HashSet<u32>,
+        depth: usize,
     ) -> Option<AgentProcessNode> {
+        if depth > 4 || !visited.insert(pid) {
+            return None;
+        }
+
         let proc = self.sys.process(Pid::from_u32(pid))?;
         let name = proc.name().to_string_lossy().to_string();
         let cmd = proc.cmd().iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>().join(" ");
@@ -177,10 +184,12 @@ impl ProcessExplorerEngine {
         };
 
         let mut child_nodes = Vec::new();
-        if let Some(children) = children_map.get(&pid) {
-            for c_pid in children {
-                if let Some(c_node) = self.build_node(*c_pid, children_map, ppid_map, false) {
-                    child_nodes.push(c_node);
+        if depth < 3 {
+            if let Some(children) = children_map.get(&pid) {
+                for c_pid in children {
+                    if let Some(c_node) = self.build_node(*c_pid, children_map, ppid_map, false, visited, depth + 1) {
+                        child_nodes.push(c_node);
+                    }
                 }
             }
         }

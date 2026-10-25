@@ -16,3 +16,8 @@ pub fn strip_idle_mcps(_session_id: String) -> Result<u32, String> {
     // Strips idle tool definitions from the session, freeing cold-start tokens
     Ok(47500) // Freed 47,500 tokens
 }
+
+#[tauri::command]
+pub fn terminate_session(session_id: String, session_name: String) -> Result<String, String> {
+    SessionTailer::terminate_session(&session_id, &session_name)
+}
