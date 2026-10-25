@@ -225,7 +225,7 @@ impl ProcessExplorerEngine {
 
         #[cfg(windows)]
         {
-            Ok(())
+            Self::set_process_suspended(pid, true)
         }
     }
 
@@ -243,7 +243,51 @@ impl ProcessExplorerEngine {
 
         #[cfg(windows)]
         {
-            Ok(())
+            Self::set_process_suspended(pid, false)
+        }
+    }
+
+    #[cfg(windows)]
+    fn set_process_suspended(pid: u32, suspend: bool) -> Result<(), String> {
+        use windows::Win32::System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Thread32First, Thread32Next, TH32CS_SNAPTHREAD, THREADENTRY32,
+        };
+        use windows::Win32::System::Threading::{
+            OpenThread, ResumeThread, SuspendThread, THREAD_SUSPEND_RESUME,
+        };
+        use windows::Win32::Foundation::CloseHandle;
+
+        unsafe {
+            let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0)
+                .map_err(|e| format!("CreateToolhelp32Snapshot failed: {}", e))?;
+
+            let mut entry: THREADENTRY32 = std::mem::zeroed();
+            entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+
+            let mut success = Thread32First(snapshot, &mut entry).is_ok();
+            let mut affected = 0;
+
+            while success {
+                if entry.th32OwnerProcessID == pid {
+                    if let Ok(thread_handle) = OpenThread(THREAD_SUSPEND_RESUME, false, entry.th32ThreadID) {
+                        if suspend {
+                            SuspendThread(thread_handle);
+                        } else {
+                            ResumeThread(thread_handle);
+                        }
+                        let _ = CloseHandle(thread_handle);
+                        affected += 1;
+                    }
+                }
+                success = Thread32Next(snapshot, &mut entry).is_ok();
+            }
+
+            let _ = CloseHandle(snapshot);
+            if affected > 0 {
+                Ok(())
+            } else {
+                Err(format!("No threads found for PID {}", pid))
+            }
         }
     }
 
