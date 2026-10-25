@@ -272,12 +272,58 @@ impl SessionTailer {
     }
 
     pub fn get_quota_countdown() -> QuotaCountdown {
+        let now = std::time::SystemTime::now();
+        let mut oldest_in_window = None;
+        let five_hours = std::time::Duration::from_secs(5 * 3600);
+
+        if let Some(claude_dir) = Self::get_claude_dir() {
+            let projects_dir = claude_dir.join("projects");
+            if let Ok(entries) = fs::read_dir(projects_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        if let Ok(sub_entries) = fs::read_dir(path) {
+                            for sub in sub_entries.flatten() {
+                                if sub.path().extension().map_or(false, |ext| ext == "jsonl") {
+                                    if let Ok(meta) = sub.metadata() {
+                                        if let Ok(mtime) = meta.modified() {
+                                            if let Ok(elapsed) = now.duration_since(mtime) {
+                                                if elapsed < five_hours {
+                                                    if oldest_in_window.map_or(true, |t| mtime < t) {
+                                                        oldest_in_window = Some(mtime);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let (remaining_seconds, safe_p90, headroom_pct) = if let Some(oldest) = oldest_in_window {
+            let elapsed = now.duration_since(oldest).unwrap_or_default().as_secs();
+            let rem = (5u64 * 3600).saturating_sub(elapsed);
+            let headroom = (rem as f32 / 18000.0) * 100.0;
+            (rem, headroom > 20.0, headroom)
+        } else {
+            (18000u64, true, 100.0)
+        };
+
+        let hours = remaining_seconds / 3600;
+        let mins = (remaining_seconds % 3600) / 60;
+        let secs = remaining_seconds % 60;
+        let formatted = format!("{:02}:{:02}:{:02}", hours, mins, secs);
+
         QuotaCountdown {
-            provider_name: "Claude Opus Rate Limit".into(),
-            remaining_seconds: 4722,
-            formatted_countdown: "01:18:42".into(),
-            safe_p90: true,
-            headroom_pct: 14.2,
+            provider_name: "Anthropic Claude Rate Limit".into(),
+            remaining_seconds,
+            formatted_countdown: formatted,
+            safe_p90,
+            headroom_pct,
         }
     }
 

@@ -1193,3 +1193,215 @@ tbody tr.selected td .pill {
   color: #8b949e;
   font-style: italic;
 }
+
+/* Wire & Tool Calls Master-Detail Inspector */
+.wire-view, .startup-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wire-table-container, .startup-table-container {
+  height: 210px;
+  flex-shrink: 0;
+  overflow: auto;
+  border-bottom: 1px solid #2f3037;
+  background: #141518;
+}
+
+.wire-detail-bar, .startup-detail-bar {
+  height: 32px;
+  background: #1e1f24;
+  border-bottom: 1px solid #2f3037;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.wire-split-pane, .startup-split-pane {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.wire-pane-left {
+  width: 50%;
+  border-right: 1px solid #2f3037;
+  display: flex;
+  flex-direction: column;
+  background: #121316;
+}
+
+.wire-pane-right {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  background: #0f1013;
+}
+
+.wire-pane-header {
+  height: 26px;
+  background: #18191e;
+  border-bottom: 1px solid #282930;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9a9ba4;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.wire-pane-content {
+  flex: 1 1 0%;
+  overflow: auto;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Tool Badges */
+.tool-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  margin-right: 6px;
+}
+.tool-badge-bash {
+  background: rgba(255, 159, 10, 0.18);
+  color: #ff9f0a;
+  border: 1px solid rgba(255, 159, 10, 0.35);
+}
+.tool-badge-mcp {
+  background: rgba(167, 139, 250, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+}
+.tool-badge-user {
+  background: rgba(50, 173, 230, 0.18);
+  color: #65c9f1;
+  border: 1px solid rgba(50, 173, 230, 0.35);
+}
+.tool-badge-file {
+  background: rgba(48, 209, 88, 0.18);
+  color: #30d158;
+  border: 1px solid rgba(48, 209, 88, 0.35);
+}
+
+/* Startup Context Headroom Meter */
+.startup-headroom-bar {
+  padding: 8px 14px;
+  background: #17181c;
+  border-bottom: 1px solid #2f3037;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.headroom-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.headroom-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headroom-meter-track {
+  height: 8px;
+  background: #25262c;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+}
+
+.meter-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.meter-segment-global {
+  background: #af52de;
+}
+
+.meter-segment-repo {
+  background: #0a84ff;
+}
+
+.meter-segment-mcp {
+  background: #5e5ce6;
+}
+
+.meter-segment-free {
+  background: #282a30;
+}
+
+/* Startup Split Inspector */
+.startup-preview-pane {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #2f3037;
+  background: #111215;
+}
+
+.startup-stats-pane {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #16171b;
+  overflow-y: auto;
+  padding: 12px 14px;
+  gap: 12px;
+}
+
+.startup-info-card {
+  background: #1d1e23;
+  border: 1px solid #2e2f37;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.startup-info-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #8e9099;
+  letter-spacing: 0.5px;
+}
+
+.startup-info-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.startup-info-desc {
+  font-size: 11px;
+  color: #9fa0a8;
+  line-height: 15px;
+}
+

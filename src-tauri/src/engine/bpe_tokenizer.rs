@@ -53,13 +53,23 @@ impl BpeTokenizerEngine {
                         repo_tokens += tokens;
                     }
 
+                    let file_size = if content.len() >= 1024 {
+                        format!("{:.1} KB", content.len() as f64 / 1024.0)
+                    } else {
+                        format!("{} B", content.len())
+                    };
+                    let line_count = content.lines().count();
+
                     items.push(StartupContextItem {
                         id: format!("item_{}", items.len() + 1),
                         name_path: display_path,
                         scope: scope.into(),
                         static_token_weight: tokens,
+                        file_size,
+                        line_count,
                         auto_start: true,
                         description: desc.into(),
+                        content: content.chars().take(8000).collect(),
                     });
                 }
             }
@@ -78,8 +88,11 @@ impl BpeTokenizerEngine {
                             name_path: format!("plugin: {}", name),
                             scope: "Global OS".into(),
                             static_token_weight: 4200,
+                            file_size: "16.8 KB".into(),
+                            line_count: 140,
                             auto_start: true,
                             description: "Active Claude plugin schema".into(),
+                            content: format!("// Active MCP Tool Definitions for plugin: {}\n// Schemas inject dynamic tools into Claude/Cursor context window.", name),
                         });
                         mcp_tokens += 4200;
                     }

@@ -69,6 +69,8 @@ export interface WirePacket {
   timestampStr: string
   latencyMs: number
   route: string
+  toolName?: string
+  summaryCmd?: string
   methodCmd: string
   rawTokens: number
   scrubbedTokens: number
@@ -84,8 +86,11 @@ export interface StartupContextItem {
   namePath: string
   scope: string
   staticTokenWeight: number
+  fileSize?: string
+  lineCount?: number
   autoStart: boolean
   description: string
+  content?: string
 }
 
 export interface ContextAuditSummary {

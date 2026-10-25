@@ -7,8 +7,14 @@ pub struct StartupContextItem {
     pub name_path: String,
     pub scope: String, // "Global OS" | "Repo-Local"
     pub static_token_weight: u32,
+    #[serde(default)]
+    pub file_size: String,
+    #[serde(default)]
+    pub line_count: usize,
     pub auto_start: bool,
     pub description: String,
+    #[serde(default)]
+    pub content: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
