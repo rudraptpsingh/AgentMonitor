@@ -1,0 +1,10 @@
+# Smithery configuration for AgentMonitor
+# Enables 1-click install in Claude Desktop, Cursor, and Smithery Registry
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties: {}
+    required: []
+  command: node
+  args: ["mcp-server/index.mjs"]
