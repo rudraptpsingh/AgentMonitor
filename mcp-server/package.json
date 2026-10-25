@@ -1,0 +1,15 @@
+{
+  "name": "@agent-monitor/mcp-server",
+  "version": "0.1.0",
+  "description": "Model Context Protocol (MCP) server for AgentMonitor",
+  "main": "index.mjs",
+  "bin": {
+    "agent-monitor-mcp": "./index.mjs"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "keywords": ["mcp", "model-context-protocol", "agent-monitor", "claude-code", "cursor", "codex"],
+  "license": "MIT"
+}

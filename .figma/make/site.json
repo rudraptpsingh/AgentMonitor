@@ -1,0 +1,10 @@
+{
+  "description": "Monitor AI coding agents, token usage, tool calls, processes, and context costs. Rewind risky changes and reclaim resources from one developer-focused dashboard.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

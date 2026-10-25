@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "agent-monitor": {
+      "command": "node",
+      "args": ["/Users/rp/Documents/GitHub/AgentMonitor/mcp-server/index.mjs"],
+      "description": "AgentMonitor telemetry and self-healing bridge for AI coding agents"
+    }
+  }
+}
