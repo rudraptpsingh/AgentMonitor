@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod engine;
 pub mod models;
+pub mod mac_dock;
 
 use std::sync::Mutex;
 use commands::*;
@@ -13,6 +14,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|_app| {
+            mac_dock::set_dock_icon();
             #[cfg(debug_assertions)]
             {
                 // Native window opens cleanly. Devtools can be opened via right click -> Inspect Element

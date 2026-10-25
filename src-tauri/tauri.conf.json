@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/tooling/cli/schema.json",
   "productName": "AgentMonitor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.agentmonitor.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -36,6 +36,7 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.icns",
       "icons/icon.png"
     ]
   }

@@ -129,6 +129,16 @@ button { cursor: pointer; }
   font: 700 12px var(--font-mono);
 }
 
+.app-icon-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: cover;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  border: 0.5px solid rgba(255, 255, 255, 0.15);
+  display: block;
+}
+
 .brand-titles {
   display: flex;
   flex-direction: column;

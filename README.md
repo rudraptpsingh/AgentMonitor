@@ -1,15 +1,24 @@
-# AgentMonitor ⚡
+<div align="center">
+  <img src="docs/images/app-icon.png" width="120" height="120" alt="AgentMonitor App Icon" />
+  <h1>AgentMonitor</h1>
+  <p><b>The Activity Monitor for local AI coding agents.</b></p>
+  <p>Monitor, pause, inspect, and rewind Claude Code, Cursor, Codex, ChatGPT Operator, and child MCP servers — with <b>zero mock data</b>.</p>
 
-> **The Activity Monitor & Sysinternals for local AI coding agents.**  
-> Monitor, pause, inspect, and rewind Claude Code, Cursor, Codex, ChatGPT Operator, and child MCP servers — with **zero mock data**.
+  <p>
+    <a href="https://github.com/rudraptpsingh/AgentMonitor/releases"><img src="https://img.shields.io/badge/Release-v0.2.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-v2.12-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri v2" /></a>
+    <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-2021_Edition-dea584?style=flat-square&logo=rust&logoColor=white" alt="Rust" /></a>
+    <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" /></a>
+    <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind-v4.0-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4" /></a>
+    <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-2024--11--05-blueviolet?style=flat-square" alt="MCP" /></a>
+    <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey?style=flat-square" alt="Platforms" />
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" /></a>
+  </p>
+</div>
 
-[![Tauri v2](https://img.shields.io/badge/Tauri-v2.12-24C8DB?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
-[![Rust](https://img.shields.io/badge/Rust-2021_Edition-dea584?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
-[![React 19](https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
-[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-v4.0-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Protocol](https://img.shields.io/badge/MCP-2024--11--05-blueviolet?style=flat-square)](https://modelcontextprotocol.io)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey?style=flat-square)]()
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+<p align="center">
+  <img src="docs/images/screenshot.png" width="100%" alt="AgentMonitor Desktop Interface" />
+</p>
 
 ---
 

@@ -1,8 +1,8 @@
 {
   "name": "agent-monitor",
   "private": true,
-  "version": "0.1.0",
-  "description": "Activity Monitor and Sysinternals for local AI coding agents (Claude Code, Cursor, Codex, MCP)",
+  "version": "0.2.0",
+  "description": "Activity Monitor for local AI coding agents (Claude Code, Cursor, Codex, MCP)",
   "type": "module",
   "scripts": {
     "dev": "vite",

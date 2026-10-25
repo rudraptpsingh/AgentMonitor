@@ -141,7 +141,7 @@ function Header({
     <div className="toolbar">
       <div className="toolbar-left">
         <div className="app-brand">
-          <span className="appmark">A</span>
+          <img src="/app-icon.png" alt="AgentMonitor Icon" className="app-icon-badge" />
           <div className="brand-titles">
             <span className="brand-name">AgentMonitor</span>
             <span className="brand-sub">Local Agent Telemetry</span>
