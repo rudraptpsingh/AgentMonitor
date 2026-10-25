@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { agentApi, AgentProcessNode, CheckpointTurn, ContextAuditSummary, StartupContextItem, TokenSessionMetrics, WirePacket } from './services/agentApi'
 
 type Tab = 'processes' | 'tokens' | 'filesystem' | 'wire' | 'startup'
@@ -200,6 +200,7 @@ function Header({
         <label className="search">
           <Icon name="search" size={12} />
           <input
+            id="global-search-input"
             value={query}
             onChange={event => onQuery(event.target.value)}
             placeholder="Search / Filter"
@@ -618,6 +619,94 @@ export default function App() {
       showToast(`⚠️ Could not open file: ${err?.message || err}`)
     }
   }
+
+  // Global Keyboard Shortcuts (⌘1-5, ⌘R, ⌘K, ⌘⌥Z, Space, ⌘F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+
+      const isMeta = e.metaKey || e.ctrlKey
+
+      // ⌘1 - ⌘5 Tab Navigation
+      if (isMeta && !e.shiftKey && !e.altKey) {
+        if (e.key === '1') {
+          e.preventDefault()
+          setActive('processes')
+          setSelected(0)
+          setQuery('')
+          return
+        }
+        if (e.key === '2') {
+          e.preventDefault()
+          setActive('tokens')
+          setSelected(0)
+          setQuery('')
+          return
+        }
+        if (e.key === '3') {
+          e.preventDefault()
+          setActive('filesystem')
+          setSelected(0)
+          setQuery('')
+          return
+        }
+        if (e.key === '4') {
+          e.preventDefault()
+          setActive('wire')
+          setSelected(0)
+          setQuery('')
+          return
+        }
+        if (e.key === '5') {
+          e.preventDefault()
+          setActive('startup')
+          setSelected(0)
+          setQuery('')
+          return
+        }
+        // ⌘R Reap detached zombies
+        if (e.key.toLowerCase() === 'r') {
+          e.preventDefault()
+          handleReap()
+          return
+        }
+        // ⌘K Kill process tree
+        if (e.key.toLowerCase() === 'k') {
+          e.preventDefault()
+          handleKill()
+          return
+        }
+        // ⌘F Focus search / filter
+        if (e.key.toLowerCase() === 'f') {
+          e.preventDefault()
+          const searchInput = document.getElementById('global-search-input') as HTMLInputElement | null
+          searchInput?.focus()
+          searchInput?.select()
+          return
+        }
+      }
+
+      // ⌘⌥Z Instant Rewind
+      if (isMeta && e.altKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        handleRewind()
+        return
+      }
+
+      // Space to Pause / Resume (when not typing in an input)
+      if (e.code === 'Space' && !isInput) {
+        e.preventDefault()
+        handlePause()
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handlePause, handleKill, handleReap, handleRewind])
 
   // Live Metrics Derived from Real Process Tree
   const userCpu = useMemo(() => {
