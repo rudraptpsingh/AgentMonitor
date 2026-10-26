@@ -60,6 +60,7 @@ If connected via Model Context Protocol, the following tools are available:
 - `get_quota_status`: Returns remaining time in the 5-hour rate limit window and token burn velocity.
 - `create_checkpoint`: Takes a Merkle shadow-tree snapshot of the current workspace (`summary` param).
 - `rollback_turn`: Restores workspace files to a snapshot in ~15ms.
+- `revert_file`: Surgically restores a single file to HEAD or a snapshot without touching other files (`filePath` param).
 - `strip_idle_mcps`: Strips unused tool schemas to save prompt cache tokens.
 - `audit_context_files`: Computes token cost of instruction files.
 
@@ -70,17 +71,21 @@ If connected via Model Context Protocol, the following tools are available:
 ### 1. Pre-Execution Safety Check
 Before running a complex or destructive task:
 ```bash
-node ./bin/agent-monitor.mjs checkpoint "Description of upcoming task"
+agent-monitor checkpoint "Description of upcoming task"
 ```
-If an edit produces broken code or hallucinated deletions:
+If an edit produces broken code or hallucinated deletions across multiple files:
 ```bash
-node ./bin/agent-monitor.mjs rollback
+agent-monitor rollback
+```
+If only one file broke while the other file edits were successful:
+```bash
+agent-monitor revert src/broken_file.rs
 ```
 
 ### 2. Fixing Stuck Ports or Dead Test Servers
 When encountering `Error: listen EADDRINUSE :::8080`:
 ```bash
-node ./bin/agent-monitor.mjs reap --force
+agent-monitor reap --force
 ```
 Then retry starting the server or running the test suite.
 

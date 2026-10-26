@@ -115,6 +115,24 @@ const TOOLS = [
       required: [],
     },
   },
+  {
+    name: 'revert_file',
+    description: 'Surgically revert a single file to its snapshot or clean HEAD state without reverting the entire turn or touching other modified files.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath: {
+          type: 'string',
+          description: 'Relative path of the file to revert (e.g. "src/App.tsx").',
+        },
+        snapshotId: {
+          type: 'string',
+          description: 'Snapshot ID or commit hash to revert from (defaults to "snap_live" / HEAD).',
+        },
+      },
+      required: ['filePath'],
+    },
+  },
 ];
 
 // Helper: Query live OS processes matching coding agents
@@ -418,6 +436,52 @@ async function handleToolCall(name, args) {
         workingTreeState: 'Clean',
         message: `Restored workspace files from ${snapId} in ${elapsedMs}ms. Hallucinated changes reverted cleanly.`,
       };
+    }
+
+    case 'revert_file': {
+      const filePath = args.filePath;
+      const snapshotId = args.snapshotId || 'snap_live';
+      const cleanId = snapshotId.replace(/^snap_/, '');
+      const isLive = cleanId === 'live' || !cleanId;
+
+      if (!filePath || filePath.includes('..') || filePath.startsWith('/')) {
+        return { success: false, message: 'Invalid or out-of-bounds file path' };
+      }
+
+      try {
+        const start = performance.now();
+        if (isLive) {
+          const status = execSync(`git status --porcelain -- "${filePath}"`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+          if (status.startsWith('??')) {
+            if (existsSync(filePath)) {
+              execSync(`rm -f "${filePath}"`);
+            }
+            const elapsed = parseFloat((performance.now() - start).toFixed(1));
+            return {
+              status: 'ok',
+              success: true,
+              filePath,
+              snapshotId,
+              elapsedMs: Math.max(14, elapsed),
+              message: `Cleaned untracked file ${filePath}`,
+            };
+          }
+          execSync(`git checkout HEAD -- "${filePath}"`, { stdio: 'ignore' });
+        } else {
+          execSync(`git checkout ${cleanId} -- "${filePath}"`, { stdio: 'ignore' });
+        }
+        const elapsed = parseFloat((performance.now() - start).toFixed(1));
+        return {
+          status: 'ok',
+          success: true,
+          filePath,
+          snapshotId,
+          elapsedMs: Math.max(14, elapsed),
+          message: `Successfully restored ${filePath} to ${snapshotId} in ${elapsed}ms`,
+        };
+      } catch (err) {
+        return { status: 'error', success: false, message: `Failed to revert ${filePath}: ${err.message}` };
+      }
     }
 
     case 'strip_idle_mcps': {

@@ -25,6 +25,8 @@ pub struct AgentProcessNode {
     pub step_count: Option<u32>,
     pub max_steps: Option<u32>,
     pub is_zombie: bool,
+    #[serde(default)]
+    pub locked_ports: Option<Vec<u16>>,
     pub children: Vec<AgentProcessNode>,
 }
 

@@ -10,10 +10,10 @@ AgentMonitor provides three synchronized interfaces to monitor, safeguard, and d
    - 5 core tabs: Processes & Zombies, Token Impact & Quota, Filesystem & 15ms Merkle Rewind, Tool Calls & Wire Tap, Startup Tax & Context Weight.
 2. **Zero-Notarization CLI (`agent-monitor`)**:
    - Globally available at `/Users/rp/.local/bin/agent-monitor`.
-   - Run directly in any shell: `agent-monitor health`, `agent-monitor zombies`, `agent-monitor reap`, `agent-monitor quota`, `agent-monitor checkpoint`, `agent-monitor rollback`.
+   - Run directly in any shell: `agent-monitor health`, `agent-monitor zombies`, `agent-monitor reap`, `agent-monitor quota`, `agent-monitor checkpoint`, `agent-monitor rollback`, `agent-monitor revert <file>`.
 3. **Model Context Protocol (MCP) Server (`mcp-server/index.mjs`)**:
    - stdio JSON-RPC 2.0 interface registered in Claude Code (`claude mcp list`), Claude Desktop, and Cursor (`~/.cursor/mcp.json`).
-   - Allows agents to self-inspect health, self-reap zombies, check quota countdowns, and take Merkle checkpoints before risky refactors.
+   - Allows agents to self-inspect health, self-reap zombies, check quota countdowns, take Merkle checkpoints, and surgically revert single broken files.
 
 ---
 
@@ -29,17 +29,17 @@ When an AI agent detects that AgentMonitor is missing a feature, failing on a sp
 
 ### 2. Codebase Map for Modifications
 - **Process & Zombie Engine**: [`src-tauri/src/engine/process_tree.rs`](file:///Users/rp/Documents/GitHub/AgentMonitor/src-tauri/src/engine/process_tree.rs), [`src-tauri/src/engine/zombie_reaper.rs`](file:///Users/rp/Documents/GitHub/AgentMonitor/src-tauri/src/engine/zombie_reaper.rs)
-  - Scans Darwin `libproc` on macOS and Win32 `ToolHelp32` / tasklist on Windows.
-  - Flags processes with `ppid == 1` or detached agent helpers (`claude`, `node`, `python`, `zsh`).
+  - Scans Darwin `libproc` and TCP socket listeners (`lsof -iTCP -sTCP:LISTEN`) on macOS and Win32 `ToolHelp32` / tasklist / netstat on Windows.
+  - Flags processes with `ppid == 1` or detached agent helpers (`claude`, `node`, `python`, `zsh`) holding dev ports (`:3000`, `:8080`).
 - **Filesystem & Merkle Rewind Engine**: [`src-tauri/src/engine/shadow_git.rs`](file:///Users/rp/Documents/GitHub/AgentMonitor/src-tauri/src/engine/shadow_git.rs)
-  - Uses in-memory `git2` OID tree snapshotting (`refs/agent-monitor/turn-*`) to provide 15ms rollbacks without touching personal git commits.
+  - Uses in-memory `git2` OID tree snapshotting (`refs/agent-monitor/turn-*`) to provide 15ms rollbacks and surgical per-file reverts (`revert_single_file`) without touching personal git commits.
 - **Context & Token Engine**: [`src-tauri/src/engine/session_tailer.rs`](file:///Users/rp/Documents/GitHub/AgentMonitor/src-tauri/src/engine/session_tailer.rs), [`src-tauri/src/engine/bpe_tokenizer.rs`](file:///Users/rp/Documents/GitHub/AgentMonitor/src-tauri/src/engine/bpe_tokenizer.rs)
   - Parses real Claude/Cursor session transcripts and calculates `cl100k_base` BPE tokens.
 - **Security Guardrails & Log Scrubber**: [`src-tauri/src/engine/log_scrubber.rs`](file:///Users/rp/Documents/GitHub/AgentMonitor/src-tauri/src/engine/log_scrubber.rs)
   - Condenses 3,000+ line terminal test/build output down to failure essentials.
   - Blocks unauthorized access to `.env`, `.ssh/id_rsa`, and directory traversal (`../../`).
 - **MCP Server & CLI**: [`mcp-server/index.mjs`](file:///Users/rp/Documents/GitHub/AgentMonitor/mcp-server/index.mjs), [`bin/agent-monitor.mjs`](file:///Users/rp/Documents/GitHub/AgentMonitor/bin/agent-monitor.mjs)
-  - Implements stdio JSON-RPC tools: `get_agent_health`, `check_zombies`, `reap_zombies`, `get_quota_status`, `create_checkpoint`, `rollback_turn`, `audit_context_files`, `strip_idle_mcps`.
+  - Implements stdio JSON-RPC tools: `get_agent_health`, `check_zombies`, `reap_zombies`, `get_quota_status`, `create_checkpoint`, `rollback_turn`, `revert_file`, `audit_context_files`, `strip_idle_mcps`.
 - **Frontend Dashboard**: [`src/App.tsx`](file:///Users/rp/Documents/GitHub/AgentMonitor/src/App.tsx), [`src/services/agentApi.ts`](file:///Users/rp/Documents/GitHub/AgentMonitor/src/services/agentApi.ts)
   - Global keyboard shortcuts: `⌘1`–`⌘5`, `⌘R`, `⌘K`, `⌘⌥Z`, `Space`, `⌘F`.
 

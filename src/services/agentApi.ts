@@ -13,6 +13,7 @@ export interface AgentProcessNode {
   stepCount?: number
   maxSteps?: number
   isZombie: boolean
+  lockedPorts?: number[]
   children: AgentProcessNode[]
 }
 
@@ -388,6 +389,13 @@ function getMockData<T>(cmd: string, _args: Record<string, unknown>): T {
         elapsedMs: 14,
         message: 'Successfully restored working tree and context',
       } as T
+    case 'revert_single_file':
+      return {
+        success: true,
+        restoredSnapshotId: (_args.snapshotId as string) || 'snap_live',
+        elapsedMs: 14,
+        message: `Successfully restored ${_args.filePath} to ${_args.snapshotId}`,
+      } as T
     default:
       return {} as T
   }
@@ -431,6 +439,9 @@ export const agentApi = {
   },
   async rewindTurn(snapshotId: string): Promise<{ success: boolean; elapsedMs: number }> {
     return invokeTauri<{ success: boolean; elapsedMs: number }>('rewind_turn', { snapshotId })
+  },
+  async revertSingleFile(snapshotId: string, filePath: string): Promise<{ success: boolean; restoredSnapshotId: string; elapsedMs: number; message: string }> {
+    return invokeTauri<{ success: boolean; restoredSnapshotId: string; elapsedMs: number; message: string }>('revert_single_file', { snapshotId, filePath })
   },
   async getFileDiff(snapshotId: string, filePath: string): Promise<string> {
     return invokeTauri<string>('get_file_diff', { snapshotId, filePath })

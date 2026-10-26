@@ -56,6 +56,7 @@ function printHelp() {
   console.log(`  ${c.cyan}quota${c.reset}                Display 5-hour rate limit countdown & token burn velocity`);
   console.log(`  ${c.cyan}checkpoint [msg]${c.reset}     Take an isolated Merkle shadow snapshot before risky edits`);
   console.log(`  ${c.cyan}rollback [snapId]${c.reset}    Revert workspace to snapshot in 15ms`);
+  console.log(`  ${c.cyan}revert <file> [snapId]${c.reset}  Surgically revert single file without touching other files`);
   console.log(`  ${c.cyan}context${c.reset}              Audit static token weight of CLAUDE.md, AGENTS.md, rules`);
   console.log(`  ${c.cyan}mcp${c.reset}                  Start Model Context Protocol (MCP) stdio server for agents`);
   console.log(`  ${c.cyan}install-skill${c.reset}        Install AgentMonitor skill into .agents/skills/ in workspace`);
@@ -163,6 +164,27 @@ async function run() {
       console.log(`${c.green}✓ ${res.message}${c.reset}`);
       console.log(`${c.bold}Restored Snapshot:${c.reset} ${c.cyan}${res.restoredSnapshotId}${c.reset}`);
       console.log(`${c.bold}Latency:${c.reset}           ${res.elapsedMs}ms\n`);
+      break;
+    }
+
+    case 'revert': {
+      const file = positional[1];
+      if (!file) {
+        console.error(`${c.red}Error: Please specify the file path to revert (e.g. agent-monitor revert src/App.tsx)${c.reset}`);
+        process.exit(1);
+      }
+      const snapId = positional[2] || 'snap_live';
+      const res = await handleToolCall('revert_file', { filePath: file, snapshotId: snapId });
+      if (isJson) {
+        console.log(JSON.stringify(res, null, 2));
+        return;
+      }
+      printBanner();
+      if (res.success) {
+        console.log(`${c.green}✓ ${res.message}${c.reset} ${c.dim}(${res.elapsedMs}ms)${c.reset}\n`);
+      } else {
+        console.log(`${c.red}✖ ${res.message}${c.reset}\n`);
+      }
       break;
     }
 

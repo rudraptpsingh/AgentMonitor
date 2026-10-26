@@ -44,6 +44,10 @@ fn test_checkpoint_and_guardrail_rule() {
     let rewind_res = shadow_git.rewind_to_snapshot("snap_test");
     assert!(rewind_res.success);
 
+    let revert_file_res = ShadowGitEngine::revert_single_file("snap_test", "src/App.tsx");
+    assert!(revert_file_res.success);
+    assert_eq!(revert_file_res.restored_snapshot_id, "snap_test");
+
     let guardrail = SensitiveBoundaryGuardrail;
     assert_eq!(guardrail.name(), "SensitiveBoundaryGuardrail");
 

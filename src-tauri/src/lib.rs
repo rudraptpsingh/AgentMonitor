@@ -38,6 +38,7 @@ pub fn run() {
             // Tab 3: Filesystem & Rewind
             get_checkpoints,
             rewind_turn,
+            revert_single_file,
             get_file_diff,
             open_local_file,
             // Tab 4: MCP & Tool Wire

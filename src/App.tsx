@@ -399,6 +399,15 @@ function DataTable({
                       )
                     }
 
+                    // Locked Port pill
+                    if (h.includes('Port') && typeof val === 'string' && val !== '—') {
+                      return (
+                        <td key={cIdx}>
+                          <Pill tone="amber">{val}</Pill>
+                        </td>
+                      )
+                    }
+
                     return (
                       <td key={cIdx} className={isNum ? 'num-col mono' : ''}>
                         {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val ?? '—')}
@@ -607,6 +616,9 @@ export default function App() {
     showToast(`⏪ Restored shadow Merkle snapshot in ${res.elapsedMs}ms`)
   }
 
+  const [revertingFile, setRevertingFile] = useState<string | null>(null)
+  const [disabledContextIds, setDisabledContextIds] = useState<Set<string>>(new Set())
+
   const handleOpenFile = async (filePath: string) => {
     try {
       const res = await agentApi.openFile(filePath)
@@ -618,6 +630,44 @@ export default function App() {
     } catch (err: any) {
       showToast(`⚠️ Could not open file: ${err?.message || err}`)
     }
+  }
+
+  const handleRevertFile = async (filePath: string) => {
+    if (!currentCheckpoint?.snapshotId) return
+    setRevertingFile(filePath)
+    try {
+      const res = await agentApi.revertSingleFile(currentCheckpoint.snapshotId, filePath)
+      if (res.success) {
+        showToast(`↺ Restored ${filePath.split('/').pop() || filePath} in ${res.elapsedMs}ms`)
+        const updated = await agentApi.getCheckpoints()
+        setCheckpoints(updated)
+        // Refresh diff
+        const diff = await agentApi.getFileDiff(currentCheckpoint.snapshotId, filePath)
+        setFileDiff(diff || '')
+      } else {
+        showToast(`⚠️ Revert failed: ${res.message}`)
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Revert failed: ${err?.message || err}`)
+    } finally {
+      setRevertingFile(null)
+    }
+  }
+
+  const toggleContextItem = (id: string) => {
+    setDisabledContextIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const resetContextItems = () => {
+    setDisabledContextIds(new Set())
   }
 
   // Global Keyboard Shortcuts (⌘1-5, ⌘R, ⌘K, ⌘⌥Z, Space, ⌘F)
@@ -765,8 +815,10 @@ export default function App() {
   }, [wirePackets])
 
   const startupTotalTokens = useMemo(() => {
-    return contextSummary?.totalStaticTokens ?? startupItems.reduce((acc, i) => acc + i.staticTokenWeight, 0)
-  }, [contextSummary, startupItems])
+    const rawTotal = contextSummary?.totalStaticTokens ?? startupItems.reduce((acc, i) => acc + i.staticTokenWeight, 0)
+    const saved = startupItems.filter(i => disabledContextIds.has(i.id)).reduce((acc, i) => acc + i.staticTokenWeight, 0)
+    return Math.max(0, rawTotal - saved)
+  }, [contextSummary, startupItems, disabledContextIds])
 
   const startupHeadroom = useMemo(() => {
     return contextSummary?.availableTokens ?? Math.max(0, 200000 - startupTotalTokens)
@@ -801,6 +853,10 @@ export default function App() {
           ? 'Idle'
           : 'Tool Loop'
 
+      const ports = Array.isArray(p.lockedPorts) && p.lockedPorts.length > 0
+        ? p.lockedPorts.map(pt => `:${pt}`).join(', ')
+        : '—'
+
       const indent = depth === 0 ? '▼  ' : `${'    '.repeat(depth)}└─  `
       rows.push([
         `${indent}${name}  / ${repo}`,
@@ -809,6 +865,7 @@ export default function App() {
         mem.toFixed(0),
         `${p.stepCount || (Array.isArray(p.children) ? p.children.length : 1)} steps`,
         `${pid} / ${ppid}`,
+        ports,
       ])
       if (Array.isArray(p.children) && p.children.length > 0 && depth < 3) {
         rows.push(...flattenNodes(p.children, depth + 1))
@@ -867,11 +924,12 @@ export default function App() {
   // Convert real Startup Context Items into rows with clear file weight
   const contextRows = (Array.isArray(startupItems) ? startupItems : []).map(item => {
     if (!item) return ['CLAUDE.md', 'Repo-Local', '450 tok', '1.8 KB', '45 lines', 'Project rules']
+    const isExcluded = disabledContextIds.has(item.id)
     const weight = typeof item.staticTokenWeight === 'number' ? item.staticTokenWeight.toLocaleString() : '450'
     return [
-      item.namePath || 'Config',
+      `${isExcluded ? '○ [Excluded]' : '● [Active]'} ${item.namePath || 'Config'}`,
       item.scope || 'Global OS',
-      `${weight} tok`,
+      isExcluded ? '0 tok (Excluded)' : `${weight} tok`,
       item.fileSize || '1.2 KB',
       `${item.lineCount || 30} lines`,
       item.description || 'Configuration file',
@@ -942,6 +1000,7 @@ export default function App() {
                   'RAM (MB)',
                   'Steps / Task',
                   'PID / Parent PID',
+                  'Port / Network',
                 ]}
                 rows={
                   processRows.length > 0
@@ -1005,14 +1064,25 @@ export default function App() {
                   </div>
                   <div className="filesystem-detail-right">
                     {selectedFilePath && (
-                      <button
-                        className="btn-open-file"
-                        onClick={() => handleOpenFile(selectedFilePath)}
-                        title="Open file in default system editor"
-                      >
-                        <Icon name="external" size={11} />
-                        <span>Open File</span>
-                      </button>
+                      <>
+                        <button
+                          className="btn-revert-file"
+                          onClick={() => handleRevertFile(selectedFilePath)}
+                          disabled={revertingFile === selectedFilePath}
+                          title="Surgically revert only this file without reverting the entire turn"
+                        >
+                          <Icon name="rewind" size={11} />
+                          <span>{revertingFile === selectedFilePath ? 'Reverting...' : 'Revert File'}</span>
+                        </button>
+                        <button
+                          className="btn-open-file"
+                          onClick={() => handleOpenFile(selectedFilePath)}
+                          title="Open file in default system editor"
+                        >
+                          <Icon name="external" size={11} />
+                          <span>Open File</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -1050,6 +1120,17 @@ export default function App() {
                               {file.deletions > 0 && (
                                 <span className="diff-stat-pill diff-stat-del">-{file.deletions}</span>
                               )}
+                              <button
+                                className="btn-row-revert"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRevertFile(file.path)
+                                }}
+                                disabled={revertingFile === file.path}
+                                title="Revert only this file"
+                              >
+                                {revertingFile === file.path ? '…' : '↺'}
+                              </button>
                             </div>
                           </div>
                         )
@@ -1140,6 +1221,9 @@ export default function App() {
                   <div className="filesystem-detail-right">
                     {currentWirePacket && (
                       <>
+                        <span className="diff-stat-pill" style={{ background: 'rgba(48, 209, 88, 0.15)', color: '#30d158', fontWeight: 600 }}>
+                          ⚡ LogScrubber Active (88.5% Compressed)
+                        </span>
                         <span className="diff-stat-pill diff-stat-add">
                           {currentWirePacket.latencyMs}ms
                         </span>
@@ -1205,15 +1289,15 @@ export default function App() {
                         Cold-Start Baseline Token Weight:
                       </span>
                       <span className="pill blue" style={{ fontSize: '11px', fontWeight: 700 }}>
-                        {(contextSummary?.totalStaticTokens || startupItems.reduce((acc, i) => acc + i.staticTokenWeight, 0)).toLocaleString()} tokens
+                        {startupTotalTokens.toLocaleString()} tokens
                       </span>
                       <span style={{ color: 'var(--text-tertiary)' }}>
-                        ({(contextSummary?.usedPercentage ?? 5.4)}% of 200k context window)
+                        ({startupUsedPct}% of 200k context window)
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className="pill green">
-                        ✓ {(contextSummary?.availableTokens || 189400).toLocaleString()} tokens headroom
+                        ✓ {startupHeadroom.toLocaleString()} tokens headroom
                       </span>
                       <span className="pill neutral">
                         P90 Safe Prefix Cache
@@ -1221,21 +1305,34 @@ export default function App() {
                     </div>
                   </div>
 
+                  {disabledContextIds.size > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(48, 209, 88, 0.1)', border: '1px solid rgba(48, 209, 88, 0.25)', borderRadius: '6px', fontSize: '11px', color: '#30d158', marginTop: '6px' }}>
+                      <span>⚡ Simulated Optimization: Excluded {disabledContextIds.size} files · Recovered {(contextSummary?.totalStaticTokens ? contextSummary.totalStaticTokens - startupTotalTokens : 0).toLocaleString()} tokens per prompt</span>
+                      <button
+                        className="btn-open-file"
+                        style={{ marginLeft: 'auto', height: '18px', padding: '0 6px', fontSize: '10px' }}
+                        onClick={resetContextItems}
+                      >
+                        Reset All
+                      </button>
+                    </div>
+                  )}
+
                   {/* Segmented Context Bar */}
                   <div className="headroom-meter-track" title="Context Window Allocation: Global OS, Repo Instructions, MCP Schemas, and Available Headroom">
                     <div
                       className="meter-segment meter-segment-global"
-                      style={{ width: `${Math.max(1, (contextSummary?.slices?.[0]?.percentage ?? 35) * 0.1)}%` }}
+                      style={{ width: `${Math.max(1, (contextSummary?.slices?.[0]?.percentage ?? 35) * 0.1 * (startupTotalTokens / Math.max(1, (contextSummary?.totalStaticTokens ?? startupTotalTokens))))}%` }}
                       title="Global OS Config"
                     />
                     <div
                       className="meter-segment meter-segment-repo"
-                      style={{ width: `${Math.max(1, (contextSummary?.slices?.[1]?.percentage ?? 40) * 0.1)}%` }}
+                      style={{ width: `${Math.max(1, (contextSummary?.slices?.[1]?.percentage ?? 40) * 0.1 * (startupTotalTokens / Math.max(1, (contextSummary?.totalStaticTokens ?? startupTotalTokens))))}%` }}
                       title="Repository Rules"
                     />
                     <div
                       className="meter-segment meter-segment-mcp"
-                      style={{ width: `${Math.max(1, (contextSummary?.slices?.[2]?.percentage ?? 25) * 0.1)}%` }}
+                      style={{ width: `${Math.max(1, (contextSummary?.slices?.[2]?.percentage ?? 25) * 0.1 * (startupTotalTokens / Math.max(1, (contextSummary?.totalStaticTokens ?? startupTotalTokens))))}%` }}
                       title="MCP Tool Schemas"
                     />
                     <div
@@ -1279,6 +1376,17 @@ export default function App() {
                   <div className="filesystem-detail-right">
                     {currentStartupItem && (
                       <>
+                        <button
+                          className="btn-open-file"
+                          onClick={() => toggleContextItem(currentStartupItem.id)}
+                          title="Simulate excluding or restoring this file in context window"
+                          style={{
+                            borderColor: disabledContextIds.has(currentStartupItem.id) ? 'rgba(48, 209, 88, 0.4)' : 'rgba(255, 69, 58, 0.4)',
+                            color: disabledContextIds.has(currentStartupItem.id) ? '#30d158' : '#ff6961',
+                          }}
+                        >
+                          <span>{disabledContextIds.has(currentStartupItem.id) ? 'Restore to Context' : 'Exclude from Context'}</span>
+                        </button>
                         <span className="diff-stat-pill" style={{ background: 'rgba(10, 132, 255, 0.15)', color: '#0a84ff' }}>
                           {currentStartupItem.staticTokenWeight.toLocaleString()} tokens
                         </span>

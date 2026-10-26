@@ -12,6 +12,11 @@ pub fn rewind_turn(snapshot_id: String) -> RewindResult {
 }
 
 #[tauri::command]
+pub fn revert_single_file(snapshot_id: String, file_path: String) -> RewindResult {
+    ShadowGitEngine::revert_single_file(&snapshot_id, &file_path)
+}
+
+#[tauri::command]
 pub fn get_file_diff(snapshot_id: String, file_path: String) -> Result<String, String> {
     ShadowGitEngine::get_file_diff(&snapshot_id, &file_path)
 }

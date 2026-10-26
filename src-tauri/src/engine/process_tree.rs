@@ -104,9 +104,10 @@ impl ProcessExplorerEngine {
         let mut total_mem = 0.0f64;
         let mut zombie_mem = 0.0f64;
         let mut visited = HashSet::new();
+        let ports_map = Self::scan_listening_ports();
 
         for root_pid in &root_pids {
-            if let Some(node) = self.build_node(*root_pid, &children_map, &ppid_map, false, &mut visited, 0) {
+            if let Some(node) = self.build_node(*root_pid, &children_map, &ppid_map, &ports_map, false, &mut visited, 0) {
                 total_cpu += node.cpu_usage;
                 total_mem += node.memory_mb;
                 result_trees.push(node);
@@ -114,7 +115,7 @@ impl ProcessExplorerEngine {
         }
 
         for zombie_pid in &zombie_pids {
-            if let Some(node) = self.build_node(*zombie_pid, &children_map, &ppid_map, true, &mut visited, 0) {
+            if let Some(node) = self.build_node(*zombie_pid, &children_map, &ppid_map, &ports_map, true, &mut visited, 0) {
                 zombie_mem += node.memory_mb;
                 result_trees.push(node);
             }
@@ -131,11 +132,75 @@ impl ProcessExplorerEngine {
         (result_trees, summary)
     }
 
+    /// Queries active TCP listening sockets and maps PID -> Vec<u16> of listening ports
+    pub fn scan_listening_ports() -> HashMap<u32, Vec<u16>> {
+        let mut port_map: HashMap<u32, Vec<u16>> = HashMap::new();
+
+        #[cfg(unix)]
+        {
+            if let Ok(output) = std::process::Command::new("lsof")
+                .args(["-iTCP", "-sTCP:LISTEN", "-n", "-P"])
+                .output()
+            {
+                let text = String::from_utf8_lossy(&output.stdout);
+                for line in text.lines().skip(1) {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 9 {
+                        if let Ok(pid) = parts[1].parse::<u32>() {
+                            for part in &parts[8..] {
+                                if let Some(idx) = part.rfind(':') {
+                                    let port_str = &part[idx + 1..];
+                                    let clean_port = port_str.split('(').next().unwrap_or(port_str).trim();
+                                    if let Ok(port) = clean_port.parse::<u16>() {
+                                        let list = port_map.entry(pid).or_default();
+                                        if !list.contains(&port) {
+                                            list.push(port);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if let Ok(output) = std::process::Command::new("cmd")
+                .args(["/c", "netstat -ano -p tcp"])
+                .output()
+            {
+                let text = String::from_utf8_lossy(&output.stdout);
+                for line in text.lines() {
+                    if line.contains("LISTENING") {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 5 {
+                            if let Ok(pid) = parts[4].parse::<u32>() {
+                                if let Some(idx) = parts[1].rfind(':') {
+                                    if let Ok(port) = parts[1][idx + 1..].parse::<u16>() {
+                                        let list = port_map.entry(pid).or_default();
+                                        if !list.contains(&port) {
+                                            list.push(port);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        port_map
+    }
+
     fn build_node(
         &self,
         pid: u32,
         children_map: &HashMap<u32, Vec<u32>>,
         ppid_map: &HashMap<u32, u32>,
+        ports_map: &HashMap<u32, Vec<u16>>,
         is_zombie: bool,
         visited: &mut HashSet<u32>,
         depth: usize,
@@ -187,12 +252,14 @@ impl ProcessExplorerEngine {
         if depth < 3 {
             if let Some(children) = children_map.get(&pid) {
                 for c_pid in children {
-                    if let Some(c_node) = self.build_node(*c_pid, children_map, ppid_map, false, visited, depth + 1) {
+                    if let Some(c_node) = self.build_node(*c_pid, children_map, ppid_map, ports_map, false, visited, depth + 1) {
                         child_nodes.push(c_node);
                     }
                 }
             }
         }
+
+        let locked_ports = ports_map.get(&pid).cloned();
 
         Some(AgentProcessNode {
             pid,
@@ -207,6 +274,7 @@ impl ProcessExplorerEngine {
             step_count: Some(child_nodes.len() as u32),
             max_steps: Some(50),
             is_zombie,
+            locked_ports,
             children: child_nodes,
         })
     }
