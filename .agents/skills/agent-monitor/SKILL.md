@@ -90,3 +90,23 @@ Before adding large blocks of instructions to `CLAUDE.md` or `AGENTS.md`:
 node ./bin/agent-monitor.mjs context
 ```
 Verify that the total context overhead remains well below 10% of the model's total capacity.
+
+--------------------------------------------------------------------------------
+
+## Agent Self-Improvement & Anti-Bloat Protocol
+
+When an agent on this machine discovers that AgentMonitor is missing a feature, lacks an edge-case process scanner, or needs modification:
+
+### Anti-Bloat Mandates:
+1. **Zero Mocks**: Never add hardcoded mock metrics, fake arrays, or synthetic timeouts. Always query live OS APIs (`libproc`, `sysinfo`, `git2`, `tiktoken-rs`).
+2. **Zero Bloat**: Keep idle RAM `<14MB`. Do not add heavy external frameworks, telemetry collectors, or cloud dependencies.
+3. **Zero Notarization Priority**: Ensure CLI (`agent-monitor`) and MCP stdio (`mcp-server/index.mjs`) remain fully usable without Apple Developer certificates or Gatekeeper notarization.
+4. **100% Offline**: Maintain 0 bytes of external network egress.
+
+### Modification & Testing Flow:
+1. Source repo path: `/Users/rp/Documents/GitHub/AgentMonitor`
+2. Test Rust engine: `cargo test --manifest-path /Users/rp/Documents/GitHub/AgentMonitor/src-tauri/Cargo.toml`
+3. Test Frontend build: `npm run build` in the repo root
+4. Verify CLI: `agent-monitor health --json` and `agent-monitor zombies`
+5. Keep `/Users/rp/.agents/skills/agent-monitor/SKILL.md` synchronized with any changes.
+

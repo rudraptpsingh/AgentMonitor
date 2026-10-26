@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agent-monitor": {
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/mcp-server/index.mjs"
+      ]
+    }
+  }
+}
